@@ -782,6 +782,12 @@ textarea.field {
 .case-header-row{align-items:start;}
 .case-tools{min-width:310px;}
 .ref-title{font-size:13.5px;font-weight:900;color:var(--brand-dark);margin:var(--sp-1) 0 var(--sp-2)}.ref-kv{display:grid;grid-template-columns:72px 1fr;gap:5px 7px;border-bottom:1px solid var(--panel-2);padding:5px 0;font-size:13px}.ref-k{font-weight:800;color:var(--ink-faint)}.ref-v{color:var(--ink);word-break:break-word}.ref-raw{font-family:var(--sans);font-size:13px;white-space:pre-wrap;line-height:1.55;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:9px;margin-top:9px;}.ref-photos{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:var(--sp-2)}.ref-photo{border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden;background:#fff;cursor:pointer}.ref-photo img{width:100%;height:78px;object-fit:cover;display:block}.ref-empty{font-size:13px;color:var(--ink-faint);padding:10px 0}
+.ref-collapse{margin:0;}
+.ref-collapse>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:13.5px;font-weight:900;color:var(--brand-dark);margin:var(--sp-1) 0 var(--sp-2);user-select:none;}
+.ref-collapse>summary::-webkit-details-marker{display:none}
+.ref-collapse>summary:after{content:'▾ 접기';font-size:11px;font-weight:700;color:var(--ink-faint);white-space:nowrap;}
+.ref-collapse:not([open])>summary:after{content:'▸ 펼치기';}
+.ref-collapse:not([open])>summary{margin-bottom:2px;}
 .ref-call-memo{width:100%;min-height:110px;font-size:13.5px;line-height:1.55;resize:vertical;}
 .ref-tint-warn{display:block;width:100%;margin-top:10px;padding:10px 12px;border:1.5px solid #d14343;border-radius:var(--radius-sm);background:var(--red-bg,#fdeaea);color:#a12626;font-size:12.5px;font-weight:800;line-height:1.5;text-align:left;cursor:pointer;}
 .ref-tint-warn:hover{background:#fadcdc;}
@@ -2793,6 +2799,16 @@ function announceGateBlock(msg){
   showToast(msg);
 }
 
+/* 고객확인사항(통화) 화면에 보이는 계약면책금/사고경과 메모는 왼쪽 사이드바 값을 그대로 보여주는
+   읽기전용 미러입니다(입력은 항상 사이드바에서만). 클릭하면 사이드바의 실제 입력칸으로 이동/포커스합니다. */
+document.addEventListener('click', function(e){
+  const t = e.target && e.target.closest ? e.target.closest('[data-syncdeductible], [data-syncaccidentmemo]') : null;
+  if(!t) return;
+  const targetId = t.hasAttribute('data-syncdeductible') ? 'deductible' : 'accidentMemo';
+  const real = document.querySelector('#caseReferenceRail #'+targetId) || document.getElementById(targetId);
+  if(real){ real.scrollIntoView({behavior:'smooth', block:'center'}); real.focus(); }
+});
+
 /* ============ 공통: 수정 가능한 복사 블록 / 메모칸 ============ */
 function copyBlock(key, defaultText, c, extraClass, forceRows){
   const val = (c.textOverrides && c.textOverrides[key]!==undefined) ? c.textOverrides[key] : defaultText;
@@ -4097,13 +4113,17 @@ if(restoreBtn&&restoreInput){restoreBtn.addEventListener('click',()=>restoreInpu
         </div>`;
       }).join('');
   }
+  /* 원본/사진 접기 상태는 재렌더링(케이스 전환 등) 사이에도 유지되도록 모듈 전역에 저장합니다.
+     기본은 펼침 상태이며, 사용자가 접으면 그 상태를 기억합니다(새로고침 전까지). */
+  window.__refRailCollapse = window.__refRailCollapse || { raw:false, photos:false };
   function updateReferenceRail(){
     const el=document.getElementById('caseReferenceRail');if(!el)return;const c=getActiveCase();
     if(!c){el.innerHTML='<div class="ref-title">단톡방 원본</div><div class="ref-empty">접수 건을 선택하면 처음 붙여넣은 단톡방 원본과 첨부사진이 여기에 계속 표시됩니다.</div>';return;}
     const photos=Array.isArray(c.photos)?c.photos:[];
-    el.innerHTML=`<div class="ref-title">단톡방 원본</div><div class="ref-raw">${escapeHtml(c.rawText||'원본 접수내용 없음')}</div>
-      <div class="ref-title" style="margin-top:14px;">첨부사진 ${photos.length?photos.length+'장':''}</div>
-      ${photos.length?`<div class="ref-photos">${photos.map((p,i)=>`<div class="ref-photo" data-v12refphoto="${i}"><img src="${p}" alt="파손사진 ${i+1}"></div>`).join('')}</div>`:'<div class="ref-empty">첨부된 사진이 없습니다.</div>'}
+    const rc=window.__refRailCollapse;
+    el.innerHTML=`<details class="ref-collapse" id="refRawDetails" ${rc.raw?'':'open'}><summary>단톡방 원본</summary><div class="ref-raw">${escapeHtml(c.rawText||'원본 접수내용 없음')}</div></details>
+      <details class="ref-collapse" id="refPhotoDetails" style="margin-top:14px;" ${rc.photos?'':'open'}><summary>첨부사진 ${photos.length?photos.length+'장':''}</summary>
+      ${photos.length?`<div class="ref-photos">${photos.map((p,i)=>`<div class="ref-photo" data-v12refphoto="${i}"><img src="${p}" alt="파손사진 ${i+1}"></div>`).join('')}</div>`:'<div class="ref-empty">첨부된 사진이 없습니다.</div>'}</details>
       <div class="ref-title" style="margin-top:14px;">계약면책금</div>
       <div class="deductible-inline-field"><label class="field-label" style="margin:0;">계약면책금</label><input class="field" id="deductible" data-money="true" inputmode="numeric" value="${escapeHtml(c.deductible||'')}" placeholder="예: 100,000"></div>
       <details class="v34-guide" id="deductibleVatGuide" style="margin-top:6px;"><summary>면책금 안내 참고사항</summary><div class="v34-guide__body">고객이 견적서 작성을 요청하면 <b>부가세 포함 금액</b>으로 작성하세요.<br>유선 안내 시에는 <b>레드캡 전산과 동일한 금액</b>으로 안내하세요.</div></details>
@@ -4112,13 +4132,17 @@ if(restoreBtn&&restoreInput){restoreBtn.addEventListener('click',()=>restoreInpu
       <div class="ref-title" style="margin-top:14px;">통화중 메모</div>
       <textarea class="field ref-call-memo" id="refCallMemo" rows="5" placeholder="통화하면서 필요한 내용을 자유롭게 적어두세요.">${escapeHtml(c.callMemo||'')}</textarea>
       ${(c.repairType==='교체' && c.customerTintChoice==='안함' && c.assignmentConfirmed) ? `<button type="button" class="ref-tint-warn" id="refTintWarnBtn">⚠ 고객이 썬팅 안 함으로 확인됐습니다.<br>배정금액을 다시 확인해주세요 → 클릭 시 배정비용 확인받기로 이동</button>` : ''}`;
+    const rawDetails=el.querySelector('#refRawDetails');
+    if(rawDetails) rawDetails.addEventListener('toggle', ()=>{ window.__refRailCollapse.raw = !rawDetails.open; });
+    const photoDetails=el.querySelector('#refPhotoDetails');
+    if(photoDetails) photoDetails.addEventListener('toggle', ()=>{ window.__refRailCollapse.photos = !photoDetails.open; });
     el.querySelectorAll('[data-v12refphoto]').forEach(x=>x.addEventListener('click',()=>{const i=Number(x.dataset.v12refphoto);if(c.photos?.[i])openPhotoViewer(c.photos[i],`${c.plate||'차량'} 파손사진 ${i+1}`)}));
     const memoEl=el.querySelector('#refCallMemo');
     if(memoEl) memoEl.addEventListener('change', async ()=>{ c.callMemo=memoEl.value; await commit(c,{skipListRefresh:true}); });
     const deductibleEl=el.querySelector('#deductible');
     if(deductibleEl) deductibleEl.addEventListener('change', async ()=>{ c.deductible=deductibleEl.value; await commit(c,{skipListRefresh:true}); renderMain(); });
     const accidentMemoEl=el.querySelector('#accidentMemo');
-    if(accidentMemoEl) accidentMemoEl.addEventListener('change', async ()=>{ c.accidentMemo=accidentMemoEl.value; await commit(c,{skipListRefresh:true}); });
+    if(accidentMemoEl) accidentMemoEl.addEventListener('change', async ()=>{ c.accidentMemo=accidentMemoEl.value; await commit(c,{skipListRefresh:true}); renderMain(); });
     const tintWarnBtn=el.querySelector('#refTintWarnBtn');
     if(tintWarnBtn) tintWarnBtn.addEventListener('click', ()=>{
       state.activeStep='assignment';
@@ -5039,13 +5063,58 @@ if(restoreBtn&&restoreInput){restoreBtn.addEventListener('click',()=>restoreInpu
           return String(v);
         }).join('\\t');
       }
+      /* 셀 배경색/글씨색까지 엑셀에 그대로 붙여넣어지도록, 복사할 때 HTML 표(색 포함)도 함께 클립보드에 담습니다.
+         엑셀은 붙여넣기 시 HTML 표가 있으면 그 표의 배경색·글씨색을 그대로 적용합니다. */
+      function escHtmlText(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+      function cellStyleAttr(td){
+        if(!td) return '';
+        const cs=getComputedStyle(td);
+        const parts=[];
+        if(cs.backgroundColor) parts.push('background-color:'+cs.backgroundColor);
+        if(cs.color) parts.push('color:'+cs.color);
+        if(parseInt(cs.fontWeight,10)>=700) parts.push('font-weight:bold');
+        return parts.join(';');
+      }
+      function valuesOnlyRowHtml(r){
+        const tds=DATA.headers.map(h=>{
+          const disp=(function(){
+            const vals=DATA.rows[r];
+            if(h.col==='A') return '';
+            if(h.col==='Q') return monthTextFromDate(vals.C);
+            if(h.col==='U'||h.col==='V'){const cell=document.querySelector('td[data-r="'+r+'"][data-col="'+h.col+'"]');return cell?cell.textContent.trim():'';}
+            const v=vals[h.col]??'';
+            if(MONEY_COLS.includes(h.col)&&v!=='') return numOf(v).toLocaleString('ko-KR');
+            if(['B','C','D'].includes(h.col)&&v) return String(v).replace(/-/g,'/');
+            return String(v);
+          })();
+          const cellEl=document.querySelector('td[data-r="'+r+'"][data-col="'+h.col+'"]');
+          const styleAttr=cellStyleAttr(cellEl);
+          return '<td'+(styleAttr?' style="'+styleAttr+'"':'')+'>'+escHtmlText(disp)+'</td>';
+        }).join('');
+        return '<tr>'+tds+'</tr>';
+      }
+      async function writeClipboardWithColors(text,html,statusPrefix){
+        try{
+          if(navigator.clipboard && window.ClipboardItem){
+            const item=new ClipboardItem({
+              'text/plain':new Blob([text],{type:'text/plain'}),
+              'text/html':new Blob(['<table><tbody>'+html+'</tbody></table>'],{type:'text/html'})
+            });
+            await navigator.clipboard.write([item]);
+            return true;
+          }
+        }catch(e){/* 일부 브라우저는 text/html 클립보드 쓰기를 막을 수 있어 아래로 폴백합니다 */}
+        await navigator.clipboard.writeText(text);
+        return false;
+      }
       document.getElementById('copyValues1').onclick=async()=>{
         try{
           const rs=checkedRows();
           const list=rs.length?rs:[0];
           const text=list.map(valuesOnlyRowClient).join('\\n');
-          await navigator.clipboard.writeText(text);
-          document.getElementById('status').textContent='값만 복사 완료 (수식 제외, '+list.length+'행)';
+          const html=list.map(valuesOnlyRowHtml).join('');
+          const withColors=await writeClipboardWithColors(text,html);
+          document.getElementById('status').textContent=(withColors?'값만 복사 완료 (셀 색·글씨색 포함, 수식 제외, ':'값만 복사 완료 (수식 제외, ')+list.length+'행)';
         }catch(e){document.getElementById('status').textContent='복사 실패: '+e.message;}
       };
       let dragMoved=false;
@@ -6771,12 +6840,12 @@ textarea.field{min-height:112px;line-height:1.62;padding:11px 12px!important;res
       <div class="v34-customer-check__top">
         <div class="v34-field-card">
           <label class="field-label">계약면책금</label>
-          <input class="field" id="deductible" data-money="true" inputmode="numeric" value="${escapeHtml(commaMoney(c.deductible||''))}" placeholder="예: 100,000">
-          <details class="v34-guide" id="deductibleVatGuide"><summary>면책금 안내 참고사항</summary><div class="v34-guide__body">견적서 작성 요청 시 면책금은 <b>부가세 포함 금액</b>으로 작성하세요.<br>유선 안내 시에는 <b>레드캡 전산과 동일한 금액</b>으로 안내하세요.</div></details>
+          <input class="field" id="deductibleCallView" data-syncdeductible="1" readonly inputmode="numeric" value="${escapeHtml(commaMoney(c.deductible||''))}" placeholder="왼쪽 사이드바에서 입력" style="background:#F6F8FC;cursor:pointer;" title="왼쪽 사이드바의 계약면책금 칸에서 입력하세요. 클릭하면 이동합니다.">
+          <div class="v34-guide__body" style="margin-top:6px;">← 왼쪽 사이드바 '계약면책금'에서 입력하면 여기에도 자동으로 반영됩니다.</div>
         </div>
         <div class="v34-field-card">
           <label class="field-label">사고경과 메모 <span style="font-weight:500;color:var(--v34-muted)">· 레드캡 원문</span></label>
-          <textarea class="field accident-memo" id="accidentMemo" placeholder="레드캡 전산의 사고경과 메모를 그대로 붙여넣으세요.">${escapeHtml(c.accidentMemo||'')}</textarea>
+          <textarea class="field accident-memo" id="accidentMemoCallView" data-syncaccidentmemo="1" readonly placeholder="왼쪽 사이드바에서 입력하세요" style="background:#F6F8FC;cursor:pointer;" title="왼쪽 사이드바의 사고경과 메모 칸에서 입력하세요. 클릭하면 이동합니다.">${escapeHtml(c.accidentMemo||'')}</textarea>
         </div>
       </div>
     </div>`;
@@ -6822,12 +6891,11 @@ textarea.field{min-height:112px;line-height:1.62;padding:11px 12px!important;res
       <div class="call-header-extra-grid">
         <div class="v35-confirm-field">
           <label class="field-label">계약면책금</label>
-          <input class="field" id="deductible" data-money="true" inputmode="numeric" value="${escapeHtml(fmtInputNum(c.deductible||''))}" placeholder="예: 100,000">
-          <details class="v34-guide" id="deductibleVatGuide"><summary>면책금 안내 참고사항</summary><div class="v34-guide__body">견적서 작성 요청 시 면책금은 <b>부가세 포함 금액</b>으로 작성하세요.<br>유선 안내 시에는 <b>레드캡 전산과 동일한 금액</b>으로 안내하세요.</div></details>
+          <input class="field" id="deductibleCallViewCollapsed" data-syncdeductible="1" readonly inputmode="numeric" value="${escapeHtml(fmtInputNum(c.deductible||''))}" placeholder="왼쪽 사이드바에서 입력" style="background:#F6F8FC;cursor:pointer;" title="왼쪽 사이드바의 계약면책금 칸에서 입력하세요. 클릭하면 이동합니다.">
         </div>
         <div class="v35-confirm-field">
           <label class="field-label">사고경과 메모</label>
-          <textarea class="field accident-memo" id="accidentMemo" placeholder="레드캡 전산의 사고경과 메모를 그대로 붙여넣으세요.">${escapeHtml(c.accidentMemo||'')}</textarea>
+          <textarea class="field accident-memo" id="accidentMemoCallViewCollapsed" data-syncaccidentmemo="1" readonly placeholder="왼쪽 사이드바에서 입력하세요" style="background:#F6F8FC;cursor:pointer;" title="왼쪽 사이드바의 사고경과 메모 칸에서 입력하세요. 클릭하면 이동합니다.">${escapeHtml(c.accidentMemo||'')}</textarea>
         </div>
       </div>
     </details>`;
